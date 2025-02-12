@@ -1,0 +1,46 @@
+
+name: Deploy Survey-Analysis-Service
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build Docker image
+        run: |
+          docker build -t richard28/survey-analysis-service:latest .
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Push Docker image to DockerHub
+        run: docker push richard28/survey-analysis-service:latest
+
+      - name: Deploy to EC2
+        run: |
+          echo "${{ secrets.AWS_SSH_KEY }}" > /tmp/key.pem
+          chmod 400 /tmp/key.pem
+          ssh -o StrictHostKeyChecking=no -i /tmp/key.pem ${{ secrets.AWS_USER }}@${{ secrets.AWS_HOST }} << 'EOF'
+            docker pull richard28/survey-analysis-service:latest
+            
+            docker-compose down
+            
+            docker-compose up -d --remove-orphans
+            
+            exit
+          EOF
