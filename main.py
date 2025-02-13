@@ -1,16 +1,28 @@
 from fastapi import FastAPI, HTTPException
-import os
-import sys
-from typing import Optional
-
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
 from config import get_database
 from analytics import SurveyAnalytics
+import py_eureka_client.eureka_client as eureka_client
+
+
+EUREKA_SERVER = "http://ec2-13-216-183-248.compute-1.amazonaws.com:8761/eureka/"
+SERVICE_NAME = "survey-analytics-service"
+SERVICE_PORT = 8000
+
+eureka_client.init(
+    eureka_server=EUREKA_SERVER,
+    app_name=SERVICE_NAME,
+    instance_port=SERVICE_PORT,
+    instance_host="ec2-13-216-183-248.compute-1.amazonaws.com"
+)
 
 app = FastAPI(title="Survey Analytics API")
-db = get_database()
-analytics = SurveyAnalytics(db)
+
+try:
+    db = get_database()
+    analytics = SurveyAnalytics(db)
+except Exception as e:
+    print(f"Error iniciando la aplicación: {e}")
+    raise e
 
 @app.get("/")
 async def root():
@@ -26,13 +38,13 @@ async def get_basic_analytics():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/analytics/summary")
-async def get_summary():
+@app.get("/analytics/trend/{days}")
+async def get_trend_analytics(days: int = 30):
     try:
-        return analytics.get_summary_report()
+        return analytics.get_trend_analysis(days)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=SERVICE_PORT, reload=True)

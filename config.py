@@ -1,11 +1,13 @@
 from pymongo import MongoClient
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
-
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://admin:adminpass@localhost:27017/surveyDB?authSource=admin')
+MONGO_URI = 'mongodb://admin:adminpass@localhost:27017/surveyDB?authSource=admin'
 
 def get_database():
-    client = MongoClient(MONGO_URI)
-    return client.surveyDB
+    try:
+        client = MongoClient(MONGO_URI)
+        client.admin.command('ping')
+        print("¡Conexión exitosa a MongoDB!")
+        return client.surveyDB
+    except Exception as e:
+        print(f"Error conectando a MongoDB: {e}")
+        raise e

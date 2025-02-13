@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pymongo
+pandas
+numpy
+py_eureka_client
+python-dotenv

@@ -9,7 +9,6 @@ class SurveyAnalytics:
         self.collection = db.surveys
 
     def get_basic_stats(self) -> Dict[str, Any]:
-
         pipeline = [
             {
                 "$group": {
@@ -32,34 +31,38 @@ class SurveyAnalytics:
         result = result[0]
         valores = result["valores"]
         
+        distribution_pipeline = [
+            {
+                "$group": {
+                    "_id": "$satisfaction",
+                    "count": {"$sum": 1}
+                }
+            }
+        ]
+        
+        distribution = list(self.collection.aggregate(distribution_pipeline))
+        total = sum(item["count"] for item in distribution)
+        
+        satisfaction_distribution = {}
+        for i in range(1, 6):
+            found = next((item for item in distribution if item["_id"] == i), None)
+            count = found["count"] if found else 0
+            satisfaction_distribution[str(i)] = {
+                "count": count,
+                "percentage": round((count / total) * 100, 2) if total > 0 else 0
+            }
+        
         return {
             "promedio": round(result["promedio"], 2),
             "total_encuestas": result["total_encuestas"],
             "moda": int(pd.Series(valores).mode()[0]),
             "min": result["min"],
             "max": result["max"],
-            "desviacion_estandar": round(np.std(valores), 2)
+            "desviacion_estandar": round(np.std(valores), 2),
+            "distribucion": satisfaction_distribution
         }
-        
-        distribution = list(self.collection.aggregate(pipeline))
-        if not distribution:
-            return {"error": "No se encontraron datos"}
-            
-        total = sum(item["count"] for item in distribution)
-        
-        result = {}
-        for i in range(1, 6):
-            found = next((item for item in distribution if item["_id"] == i), None)
-            count = found["count"] if found else 0
-            result[str(i)] = {
-                "count": count,
-                "percentage": round((count / total) * 100, 2) if total > 0 else 0
-            }
-            
-        return result
 
     def get_trend_analysis(self, days: int = 30) -> List[Dict[str, Any]]:
-
         date_limit = datetime.now() - timedelta(days=days)
         
         pipeline = [
@@ -86,14 +89,10 @@ class SurveyAnalytics:
         
         results = list(self.collection.aggregate(pipeline))
         
-        formatted_results = []
-        for result in results:
-            formatted_results.append({
-                "fecha": f"{result['_id']['año']}-{result['_id']['mes']}-{result['_id']['dia']}",
-                "promedio": round(result["promedio_diario"], 2),
-                "total_encuestas": result["total_encuestas"],
-                "min": result["min_satisfaction"],
-                "max": result["max_satisfaction"]
-            })
-            
-        return formatted_results
+        return [{
+            "fecha": f"{result['_id']['año']}-{result['_id']['mes']}-{result['_id']['dia']}",
+            "promedio": round(result["promedio_diario"], 2),
+            "total_encuestas": result["total_encuestas"],
+            "min": result["min_satisfaction"],
+            "max": result["max_satisfaction"]
+        } for result in results]
